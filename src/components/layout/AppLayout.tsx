@@ -1,28 +1,25 @@
 import React from "react";
-import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
-
+import { AppHeader } from "./AppHeader";
+import { BreadcrumbProvider } from "@/hooks/breadcrumb-provider";
 type AppLayoutProps = {
   children: React.ReactNode;
-  container?: boolean;
-  className?: string;
-  contentClassName?: string;
 };
-
-export function AppLayout({ children, container = false, className, contentClassName }: AppLayoutProps): JSX.Element {
+export function AppLayout({ children }: AppLayoutProps): JSX.Element {
   return (
-    <SidebarProvider defaultOpen={false}>
-      <AppSidebar />
-      <SidebarInset className={className}>
-        <div className="absolute left-2 top-2 z-20">
-          <SidebarTrigger />
+    <SidebarProvider>
+      <BreadcrumbProvider>
+        <div className="flex min-h-screen w-full flex-col bg-muted/40">
+          <AppSidebar />
+          <div className="flex flex-col sm:gap-4 sm:py-4 sm:pl-14">
+            <AppHeader />
+            <main className="flex-1 p-4 sm:px-6 sm:py-0 md:gap-8">
+              {children}
+            </main>
+          </div>
         </div>
-        {container ? (
-          <div className={"max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-10 lg:py-12" + (contentClassName ? ` ${contentClassName}` : "")}>{children}</div>
-        ) : (
-          children
-        )}
-      </SidebarInset>
+      </BreadcrumbProvider>
     </SidebarProvider>
   );
 }

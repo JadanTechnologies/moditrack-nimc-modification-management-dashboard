@@ -1,15 +1,213 @@
-import type { User, Chat, ChatMessage } from './types';
-
+import { User, ModificationRequest, ActivityLog } from './types';
+import { subDays } from 'date-fns';
 export const MOCK_USERS: User[] = [
-  { id: 'u1', name: 'User A' },
-  { id: 'u2', name: 'User B' }
+  { id: 'user-1', name: 'Admin User', role: 'Admin', status: 'Active' },
+  { id: 'user-2', name: 'Babatunde Fashola', role: 'Staff', status: 'Active' },
+  { id: 'user-3', name: 'Aisha Buhari', role: 'Staff', status: 'Active' },
+  { id: 'user-4', name: 'Ngozi Okonjo-Iweala', role: 'Staff', status: 'Active' },
+  { id: 'user-5', name: 'Jabir Nasir', role: 'Staff', status: 'Active' },
 ];
-
-export const MOCK_CHATS: Chat[] = [
-  { id: 'c1', title: 'General' },
+export const MOCK_REQUESTS: ModificationRequest[] = [
+  {
+    id: 'REQ-001',
+    nin: '12345678901',
+    fullName: 'Adewale Adeyemi',
+    requestType: 'Name',
+    status: 'Pending',
+    assignedToId: null,
+    submittedAt: subDays(new Date(), 2).toISOString(),
+    history: [{ status: 'Pending', updatedAt: subDays(new Date(), 2).toISOString(), updatedBy: 'System' }],
+    details: {
+      oldValue: 'Adewale Adeyemi',
+      newValue: 'Adewale Adekunle Adeyemi',
+      reason: 'Middle name was missing.',
+      documents: [{ name: 'birth_certificate.pdf', url: '#' }],
+    },
+  },
+  {
+    id: 'REQ-002',
+    nin: '23456789012',
+    fullName: 'Fatima Aliyu',
+    requestType: 'DOB',
+    status: 'In Progress',
+    assignedToId: 'user-2',
+    submittedAt: subDays(new Date(), 5).toISOString(),
+    history: [
+      { status: 'Pending', updatedAt: subDays(new Date(), 5).toISOString(), updatedBy: 'System' },
+      { status: 'In Progress', updatedAt: subDays(new Date(), 4).toISOString(), updatedBy: 'Babatunde Fashola' },
+    ],
+    details: {
+      oldValue: '1990-05-15',
+      newValue: '1990-05-16',
+      reason: 'Typographical error during initial registration.',
+      documents: [{ name: 'affidavit.pdf', url: '#' }, { name: 'passport.jpg', url: '#' }],
+    },
+  },
+  {
+    id: 'REQ-003',
+    nin: '34567890123',
+    fullName: 'Chinedu Okoro',
+    requestType: 'Address',
+    status: 'Completed',
+    assignedToId: 'user-3',
+    submittedAt: subDays(new Date(), 10).toISOString(),
+    history: [
+        { status: 'Pending', updatedAt: subDays(new Date(), 10).toISOString(), updatedBy: 'System' },
+        { status: 'In Progress', updatedAt: subDays(new Date(), 9).toISOString(), updatedBy: 'Aisha Buhari' },
+        { status: 'Completed', updatedAt: subDays(new Date(), 7).toISOString(), updatedBy: 'Aisha Buhari' },
+    ],
+    details: {
+      oldValue: '123, Allen Avenue, Ikeja, Lagos',
+      newValue: '456, Admiralty Way, Lekki, Lagos',
+      reason: 'Moved to a new apartment.',
+      documents: [{ name: 'utility_bill.pdf', url: '#' }],
+    },
+  },
+  {
+    id: 'REQ-004',
+    nin: '45678901234',
+    fullName: 'Ngozi Eze',
+    requestType: 'Phone',
+    status: 'Rejected',
+    assignedToId: 'user-4',
+    submittedAt: subDays(new Date(), 15).toISOString(),
+    history: [
+        { status: 'Pending', updatedAt: subDays(new Date(), 15).toISOString(), updatedBy: 'System' },
+        { status: 'In Progress', updatedAt: subDays(new Date(), 14).toISOString(), updatedBy: 'Ngozi Okonjo-Iweala' },
+        { status: 'Rejected', updatedAt: subDays(new Date(), 12).toISOString(), updatedBy: 'Ngozi Okonjo-Iweala', notes: 'Provided proof of ownership is invalid.' },
+    ],
+    details: {
+      oldValue: '08012345678',
+      newValue: '09087654321',
+      reason: 'Lost my old SIM card.',
+      documents: [{ name: 'sim_welcome_pack.jpg', url: '#' }],
+    },
+  },
+  {
+    id: 'REQ-005',
+    nin: '56789012345',
+    fullName: 'Musa Ibrahim',
+    requestType: 'Photo',
+    status: 'Pending',
+    assignedToId: null,
+    submittedAt: subDays(new Date(), 1).toISOString(),
+    history: [{ status: 'Pending', updatedAt: subDays(new Date(), 1).toISOString(), updatedBy: 'System' }],
+    details: {
+      oldValue: 'photo_v1.jpg',
+      newValue: 'photo_v2.jpg',
+      reason: 'Update to a more recent photograph.',
+      documents: [{ name: 'new_passport_photo.jpg', url: '#' }],
+    },
+  },
+  {
+    id: 'REQ-006',
+    nin: '67890123456',
+    fullName: 'Amina Bello',
+    requestType: 'Name',
+    status: 'In Progress',
+    assignedToId: 'user-2',
+    submittedAt: subDays(new Date(), 3).toISOString(),
+    history: [
+        { status: 'Pending', updatedAt: subDays(new Date(), 3).toISOString(), updatedBy: 'System' },
+        { status: 'In Progress', updatedAt: subDays(new Date(), 2).toISOString(), updatedBy: 'Babatunde Fashola' },
+    ],
+    details: {
+      oldValue: 'Amina Bello',
+      newValue: 'Amina Bello-Yusuf',
+      reason: 'Change of name due to marriage.',
+      documents: [{ name: 'marriage_certificate.pdf', url: '#' }],
+    },
+  },
+  {
+    id: 'REQ-007',
+    nin: '78901234567',
+    fullName: 'Oluwatobi Adekunle',
+    requestType: 'DOB',
+    status: 'Pending',
+    assignedToId: null,
+    submittedAt: subDays(new Date(), 6).toISOString(),
+    history: [{ status: 'Pending', updatedAt: subDays(new Date(), 6).toISOString(), updatedBy: 'System' }],
+    details: {
+      oldValue: '2001-11-20',
+      newValue: '2000-11-20',
+      reason: 'Correction of birth year.',
+      documents: [{ name: 'birth_certificate_new.pdf', url: '#' }],
+    },
+  },
+  {
+    id: 'REQ-008',
+    nin: '89012345678',
+    fullName: 'Ikenna Obinna',
+    requestType: 'Address',
+    status: 'Completed',
+    assignedToId: 'user-3',
+    submittedAt: subDays(new Date(), 20).toISOString(),
+    history: [
+        { status: 'Pending', updatedAt: subDays(new Date(), 20).toISOString(), updatedBy: 'System' },
+        { status: 'In Progress', updatedAt: subDays(new Date(), 18).toISOString(), updatedBy: 'Aisha Buhari' },
+        { status: 'Completed', updatedAt: subDays(new Date(), 17).toISOString(), updatedBy: 'Aisha Buhari' },
+    ],
+    details: {
+      oldValue: '7, Bode Thomas, Surulere, Lagos',
+      newValue: '15, Kofo Abayomi, Victoria Island, Lagos',
+      reason: 'Relocation for work.',
+      documents: [{ name: 'tenancy_agreement.pdf', url: '#' }],
+    },
+  },
+  {
+    id: 'REQ-009',
+    nin: '90123456789',
+    fullName: 'Hadiza Abubakar',
+    requestType: 'Phone',
+    status: 'Pending',
+    assignedToId: null,
+    submittedAt: subDays(new Date(), 4).toISOString(),
+    history: [{ status: 'Pending', updatedAt: subDays(new Date(), 4).toISOString(), updatedBy: 'System' }],
+    details: {
+      oldValue: '08098765432',
+      newValue: '08123456789',
+      reason: 'New primary phone number.',
+      documents: [{ name: 'proof_of_ownership.pdf', url: '#' }],
+    },
+  },
+  {
+    id: 'REQ-010',
+    nin: '11223344556',
+    fullName: 'Yusuf Mohammed',
+    requestType: 'Name',
+    status: 'In Progress',
+    assignedToId: 'user-4',
+    submittedAt: subDays(new Date(), 8).toISOString(),
+    history: [
+        { status: 'Pending', updatedAt: subDays(new Date(), 8).toISOString(), updatedBy: 'System' },
+        { status: 'In Progress', updatedAt: subDays(new Date(), 7).toISOString(), updatedBy: 'Ngozi Okonjo-Iweala' },
+    ],
+    details: {
+      oldValue: 'Yusuf Mohamed',
+      newValue: 'Yusuf Mohammed',
+      reason: 'Spelling correction.',
+      documents: [{ name: 'id_card.jpg', url: '#' }],
+    },
+  },
+  {
+    id: 'REQ-011',
+    nin: '66554433221',
+    fullName: 'Chioma Adebayo',
+    requestType: 'LGA',
+    status: 'Pending',
+    assignedToId: null,
+    submittedAt: subDays(new Date(), 1).toISOString(),
+    history: [{ status: 'Pending', updatedAt: subDays(new Date(), 1).toISOString(), updatedBy: 'System' }],
+    details: {
+      oldValue: 'Ikeja',
+      newValue: 'Eti-Osa',
+      reason: 'Correction of LGA of origin.',
+      documents: [{ name: 'lga_certificate.pdf', url: '#' }],
+    },
+  },
 ];
-
-export const MOCK_CHAT_MESSAGES: ChatMessage[] = [
-  { id: 'm1', chatId: 'c1', userId: 'u1', text: 'Hello', ts: Date.now() },
+export const MOCK_LOGS: ActivityLog[] = [
+    { id: 'log-1', userId: 'user-2', userName: 'Babatunde Fashola', action: 'Updated status to In Progress', targetId: 'REQ-002', timestamp: subDays(new Date(), 4).toISOString() },
+    { id: 'log-2', userId: 'user-3', userName: 'Aisha Buhari', action: 'Updated status to Completed', targetId: 'REQ-003', timestamp: subDays(new Date(), 7).toISOString() },
+    { id: 'log-3', userId: 'user-4', userName: 'Ngozi Okonjo-Iweala', action: 'Updated status to Rejected', targetId: 'REQ-004', timestamp: subDays(new Date(), 12).toISOString() },
 ];
-  

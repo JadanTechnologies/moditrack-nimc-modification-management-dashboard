@@ -1,75 +1,177 @@
 import { Hono } from "hono";
 import type { Env } from './core-utils';
-import { UserEntity, ChatBoardEntity } from "./entities";
-import { ok, bad, notFound, isStr } from './core-utils';
-
+import { UserEntity, ModificationRequestEntity, ActivityLogEntity, NotificationEntity } from "./entities";
+import { ok, bad, notFound } from './core-utils';
+import { RequestStatus, User, UserStatus, ModificationRequest } from "@shared/types";
+import { isAfter, isBefore, parseISO } from 'date-fns';
+// Helper to create logs and notifications
+const createLog = async (env: Env, userId: string, userName: string, action: string, targetId: string, details?: string) => {
+  await ActivityLogEntity.create(env, {
+    id: crypto.randomUUID(),
+    userId,
+    userName,
+    action,
+    targetId,
+    details,
+    timestamp: new Date().toISOString(),
+  });
+};
+const createNotification = async (env: Env, userId: string, message: string, requestId: string | null) => {
+  await NotificationEntity.create(env, {
+    id: crypto.randomUUID(),
+    userId,
+    message,
+    requestId,
+    isRead: false,
+    timestamp: new Date().toISOString(),
+  });
+};
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
-  app.get('/api/test', (c) => c.json({ success: true, data: { name: 'CF Workers Demo' }}));
-
+  app.use('/api/*', async (c, next) => {
+    await UserEntity.ensureSeed(c.env);
+    await ModificationRequestEntity.ensureSeed(c.env);
+    await next();
+  });
   // USERS
   app.get('/api/users', async (c) => {
-    await UserEntity.ensureSeed(c.env);
-    const cq = c.req.query('cursor');
-    const lq = c.req.query('limit');
-    const page = await UserEntity.list(c.env, cq ?? null, lq ? Math.max(1, (Number(lq) | 0)) : undefined);
+    const page = await UserEntity.list(c.env, null, 100);
     return ok(c, page);
   });
-
   app.post('/api/users', async (c) => {
-    const { name } = (await c.req.json()) as { name?: string };
-    if (!name?.trim()) return bad(c, 'name required');
-    return ok(c, await UserEntity.create(c.env, { id: crypto.randomUUID(), name: name.trim() }));
+    const { name, role } = await c.req.json<Partial<User>>();
+    if (!name?.trim() || !role) return bad(c, 'Name and role are required');
+    const user = await UserEntity.create(c.env, { id: crypto.randomUUID(), name: name.trim(), role, status: 'Active' });
+    // TODO: Replace 'user-1' and 'Admin User' with authenticated user context when available
+    await createLog(c.env, 'user-1', 'Admin User', 'Created User', user.id, `Name: ${user.name}, Role: ${user.role}`);
+    return ok(c, user);
   });
-
-  // CHATS
-  app.get('/api/chats', async (c) => {
-    await ChatBoardEntity.ensureSeed(c.env);
-    const cq = c.req.query('cursor');
-    const lq = c.req.query('limit');
-    const page = await ChatBoardEntity.list(c.env, cq ?? null, lq ? Math.max(1, (Number(lq) | 0)) : undefined);
+  app.put('/api/users/:id', async (c) => {
+    const { id } = c.req.param();
+    const { name, role, status } = await c.req.json<Partial<User>>();
+    const userEntity = new UserEntity(c.env, id);
+    if (!await userEntity.exists()) return notFound(c, 'User not found');
+    const updatedUser = await userEntity.mutate(current => ({
+      ...current,
+      name: name?.trim() || current.name,
+      role: role || current.role,
+      status: status || current.status,
+    }));
+    // TODO: Replace 'user-1' and 'Admin User' with authenticated user context when available
+    await createLog(c.env, 'user-1', 'Admin User', 'Updated User', id, `Name: ${updatedUser.name}, Role: ${updatedUser.role}, Status: ${updatedUser.status}`);
+    return ok(c, updatedUser);
+  });
+  app.delete('/api/users/:id', async (c) => {
+    const { id } = c.req.param();
+    const deleted = await UserEntity.delete(c.env, id);
+    if (!deleted) return notFound(c, 'User not found');
+    // TODO: Replace 'user-1' and 'Admin User' with authenticated user context when available
+    await createLog(c.env, 'user-1', 'Admin User', 'Deleted User', id);
+    return ok(c, { id, deleted });
+  });
+  // MODIFICATION REQUESTS
+  app.get('/api/requests', async (c) => {
+    const { q, status, type, from, to } = c.req.query();
+    const page = await ModificationRequestEntity.list(c.env, null, 200);
+    let items = page.items;
+    if (q) {
+      items = items.filter(r => r.fullName.toLowerCase().includes(q.toLowerCase()) || r.nin.includes(q));
+    }
+    if (status) items = items.filter(r => r.status === status);
+    if (type) items = items.filter(r => r.requestType === type);
+    if (from) items = items.filter(r => isAfter(parseISO(r.submittedAt), parseISO(from)));
+    if (to) items = items.filter(r => isBefore(parseISO(r.submittedAt), parseISO(to)));
+    return ok(c, { items, next: null });
+  });
+  app.post('/api/requests', async (c) => {
+    const { nin, fullName, requestType, details, createdBy, submittedAt } = await c.req.json<Partial<ModificationRequest> & { createdBy: string }>();
+    if (!nin || !fullName || !requestType || !details || !createdBy) {
+      return bad(c, 'Missing required fields for creating a request.');
+    }
+    const newId = `REQ-${String(Date.now()).slice(-6)}`;
+    const submissionTimestamp = submittedAt ? new Date(submittedAt).toISOString() : new Date().toISOString();
+    const newRequest: ModificationRequest = {
+      id: newId,
+      nin,
+      fullName,
+      requestType,
+      details: { ...details, documents: [] }, // Documents not handled in this phase
+      status: 'Pending',
+      assignedToId: null,
+      submittedAt: submissionTimestamp,
+      history: [
+        {
+          status: 'Pending',
+          updatedAt: submissionTimestamp,
+          updatedBy: createdBy,
+          notes: 'Request submitted.',
+        },
+      ],
+    };
+    const created = await ModificationRequestEntity.create(c.env, newRequest);
+    // TODO: Replace 'user-1' with authenticated user ID when available
+    await createLog(c.env, 'user-1', createdBy, 'Created Request', newId, `Type: ${requestType}`);
+    return ok(c, created);
+  });
+  app.get('/api/requests/:id', async (c) => {
+    const { id } = c.req.param();
+    const requestEntity = new ModificationRequestEntity(c.env, id);
+    if (!await requestEntity.exists()) return notFound(c, 'Request not found');
+    return ok(c, await requestEntity.getState());
+  });
+  app.put('/api/requests/:id', async (c) => {
+    const { id } = c.req.param();
+    const { status, notes, updatedBy, assignedToId } = await c.req.json<{ status?: RequestStatus, notes?: string, updatedBy?: string, assignedToId?: string }>();
+    const requestEntity = new ModificationRequestEntity(c.env, id);
+    if (!await requestEntity.exists()) return notFound(c, 'Request not found');
+    const updatedRequest = await requestEntity.mutate(current => {
+      const newState = { ...current };
+      if (status && updatedBy) {
+        newState.status = status;
+        newState.history = [...current.history, { status, updatedAt: new Date().toISOString(), updatedBy, notes: notes || undefined }];
+      } else if (notes && updatedBy) {
+        // Handle note-only updates by adding to history without changing status
+        newState.history = [...current.history, { status: current.status, updatedAt: new Date().toISOString(), updatedBy, notes }];
+      }
+      if (assignedToId !== undefined) {
+        newState.assignedToId = assignedToId;
+      }
+      return newState;
+    });
+    // Log and notify
+    if (status && updatedBy) {
+      // The `updatedBy` from the client is the user's name. The user ID for logging is not available in this context.
+      // TODO: Replace 'user-1' with authenticated user ID when available.
+      await createLog(c.env, 'user-1', updatedBy, `Updated Status to ${status}`, id, notes);
+      if (updatedRequest.assignedToId) {
+        await createNotification(c.env, updatedRequest.assignedToId, `Status of request ${id} updated to ${status}`, id);
+      }
+    }
+    if (assignedToId) {
+      const staffUser = await new UserEntity(c.env, assignedToId).getState();
+      // TODO: Replace 'user-1' and 'Admin User' with authenticated user context when available
+      await createLog(c.env, 'user-1', 'Admin User', `Assigned Request`, id, `Assigned to: ${staffUser.name}`);
+      await createNotification(c.env, assignedToId, `You have been assigned a new request: ${id}`, id);
+    }
+    return ok(c, updatedRequest);
+  });
+  // NOTIFICATIONS
+  app.get('/api/notifications', async (c) => {
+    const page = await NotificationEntity.list(c.env, null, 50);
+    page.items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     return ok(c, page);
   });
-
-  app.post('/api/chats', async (c) => {
-    const { title } = (await c.req.json()) as { title?: string };
-    if (!title?.trim()) return bad(c, 'title required');
-    const created = await ChatBoardEntity.create(c.env, { id: crypto.randomUUID(), title: title.trim(), messages: [] });
-    return ok(c, { id: created.id, title: created.title });
+  app.put('/api/notifications/:id', async (c) => {
+    const { id } = c.req.param();
+    const { isRead } = await c.req.json<{ isRead: boolean }>();
+    const notifEntity = new NotificationEntity(c.env, id);
+    if (!await notifEntity.exists()) return notFound(c, 'Notification not found');
+    const updated = await notifEntity.mutate(current => ({ ...current, isRead }));
+    return ok(c, updated);
   });
-
-  // MESSAGES
-  app.get('/api/chats/:chatId/messages', async (c) => {
-    const chat = new ChatBoardEntity(c.env, c.req.param('chatId'));
-    if (!await chat.exists()) return notFound(c, 'chat not found');
-    return ok(c, await chat.listMessages());
-  });
-
-  app.post('/api/chats/:chatId/messages', async (c) => {
-    const chatId = c.req.param('chatId');
-    const { userId, text } = (await c.req.json()) as { userId?: string; text?: string };
-    if (!isStr(userId) || !text?.trim()) return bad(c, 'userId and text required');
-    const chat = new ChatBoardEntity(c.env, chatId);
-    if (!await chat.exists()) return notFound(c, 'chat not found');
-    return ok(c, await chat.sendMessage(userId, text.trim()));
-  });
-
-  // DELETE: Users
-  app.delete('/api/users/:id', async (c) => ok(c, { id: c.req.param('id'), deleted: await UserEntity.delete(c.env, c.req.param('id')) }));
-
-  app.post('/api/users/deleteMany', async (c) => {
-    const { ids } = (await c.req.json()) as { ids?: string[] };
-    const list = ids?.filter(isStr) ?? [];
-    if (list.length === 0) return bad(c, 'ids required');
-    return ok(c, { deletedCount: await UserEntity.deleteMany(c.env, list), ids: list });
-  });
-
-  // DELETE: Chats
-  app.delete('/api/chats/:id', async (c) => ok(c, { id: c.req.param('id'), deleted: await ChatBoardEntity.delete(c.env, c.req.param('id')) }));
-
-  app.post('/api/chats/deleteMany', async (c) => {
-    const { ids } = (await c.req.json()) as { ids?: string[] };
-    const list = ids?.filter(isStr) ?? [];
-    if (list.length === 0) return bad(c, 'ids required');
-    return ok(c, { deletedCount: await ChatBoardEntity.deleteMany(c.env, list), ids: list });
+  // AUDIT LOGS
+  app.get('/api/logs', async (c) => {
+    const page = await ActivityLogEntity.list(c.env, null, 200);
+    page.items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return ok(c, page);
   });
 }
