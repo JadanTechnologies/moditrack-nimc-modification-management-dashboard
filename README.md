@@ -1,6 +1,6 @@
 # ModiTrack: NIMC Modification Management Dashboard
 
-[cloudflarebutton]
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/JadanTechnologies/moditrack-nimc-modification-management-dashboard)
 
 ModiTrack is a sophisticated, secure, and intuitive internal web dashboard designed for the National Identity Management Commission (NIMC) to streamline the management of citizen data modification requests. The platform provides a centralized system for NIMC staff and administrators to view, track, assign, and process requests such as changes to name, date of birth, address, and phone number. It features role-based access control for Admins and Staff, a comprehensive dashboard with real-time analytics, advanced filtering, and a detailed request view. The system is built for efficiency and accountability, incorporating activity logs and an audit trail to ensure transparency in all operations. The user interface is designed to be professional, clean, and data-focused, reflecting the gravity of its purpose while ensuring a seamless and productive user experience.
 
@@ -95,7 +95,7 @@ Wrangler will handle the process of uploading the frontend assets to Cloudflare 
 
 Alternatively, you can deploy directly from your GitHub repository using the button below.
 
-[cloudflarebutton]
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/JadanTechnologies/moditrack-nimc-modification-management-dashboard)
 
 ## License
 
